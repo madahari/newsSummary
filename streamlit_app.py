@@ -1,9 +1,10 @@
 import streamlit as st
 import feedparser
-from sumy.parsers.plaintext import PlaintextParser
-from sumy.nlp.tokenizers import Tokenizer
-from sumy.summarizers.lsa import LsaSummarizer
 import nltk
+from nltk.tokenize import sent_tokenize
+from nltk.corpus import stopwords
+from nltk.probability import FreqDist
+from heapq import nlargest
 import ssl
 import time
 
@@ -17,13 +18,23 @@ else:
 
 # NLTK 데이터 다운로드
 nltk.download('punkt')
+nltk.download('stopwords')
 
-# 뉴스 요약 함수
-def summarize_text(text, sentences_count=3):
-    parser = PlaintextParser.from_string(text, Tokenizer("english"))
-    summarizer = LsaSummarizer()
-    summary = summarizer(parser.document, sentences_count)
-    return " ".join([str(sentence) for sentence in summary])
+# 간단한 요약 함수
+def simple_summarize(text, num_sentences=3):
+    sentences = sent_tokenize(text)
+    words = [word.lower() for sentence in sentences for word in nltk.word_tokenize(sentence) if word.isalnum()]
+    word_freq = FreqDist(words)
+    ranking = {}
+    for i, sentence in enumerate(sentences):
+        for word in nltk.word_tokenize(sentence.lower()):
+            if word in word_freq:
+                if i not in ranking:
+                    ranking[i] = word_freq[word]
+                else:
+                    ranking[i] += word_freq[word]
+    indexes = nlargest(num_sentences, ranking, key=ranking.get)
+    return ' '.join([sentences[j] for j in sorted(indexes)])
 
 # RSS 피드에서 뉴스 가져오기
 def get_news(url):
@@ -54,12 +65,22 @@ def main():
                 for item in news_items:
                     if any(topic.lower() in item.title.lower() for topic in topics):
                         st.write(f"**{item.title}**")
-                        try:
-                            summary = summarize_text(item.description)
-                            st.write(summary)
-                        except Exception as e:
-                            st.write("요약을 생성하는 데 문제가 발생했습니다.")
-                            st.write(item.description)  # 대신 원본 설명을 표시
+                        st.write(f"원본 텍스트 길이: {len(item.description)}")
+                        
+                        if len(item.description) < 100:
+                            st.write("텍스트가 너무 짧아 요약하지 않습니다.")
+                            st.write(item.description)
+                        else:
+                            try:
+                                summary = simple_summarize(item.description)
+                                st.write("요약:")
+                                st.write(summary)
+                            except Exception as e:
+                                st.write("요약을 생성하는 데 문제가 발생했습니다.")
+                                st.write(f"오류 내용: {str(e)}")
+                                st.write("원본 내용:")
+                                st.write(item.description)
+                        
                         st.write(f"[원문 링크]({item.link})")
                         st.write("---")
             except Exception as e:
