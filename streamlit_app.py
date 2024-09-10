@@ -4,7 +4,16 @@ from sumy.parsers.plaintext import PlaintextParser
 from sumy.nlp.tokenizers import Tokenizer
 from sumy.summarizers.lsa import LsaSummarizer
 import nltk
+import ssl
 import time
+
+# SSL 인증서 문제 해결
+try:
+    _create_unverified_https_context = ssl._create_unverified_context
+except AttributeError:
+    pass
+else:
+    ssl._create_default_https_context = _create_unverified_https_context
 
 # NLTK 데이터 다운로드
 nltk.download('punkt')
@@ -39,15 +48,23 @@ def main():
 
         for site in news_sites:
             st.subheader(f"뉴스 출처: {site}")
-            news_items = get_news(site)
-            
-            for item in news_items:
-                if any(topic.lower() in item.title.lower() for topic in topics):
-                    st.write(f"**{item.title}**")
-                    summary = summarize_text(item.description)
-                    st.write(summary)
-                    st.write(f"[원문 링크]({item.link})")
-                    st.write("---")
+            try:
+                news_items = get_news(site)
+                
+                for item in news_items:
+                    if any(topic.lower() in item.title.lower() for topic in topics):
+                        st.write(f"**{item.title}**")
+                        try:
+                            summary = summarize_text(item.description)
+                            st.write(summary)
+                        except Exception as e:
+                            st.write("요약을 생성하는 데 문제가 발생했습니다.")
+                            st.write(item.description)  # 대신 원본 설명을 표시
+                        st.write(f"[원문 링크]({item.link})")
+                        st.write("---")
+            except Exception as e:
+                st.error(f"뉴스를 가져오는 데 문제가 발생했습니다: {site}")
+                st.error(str(e))
 
     # 자동 업데이트 (실제 실시간은 아니지만 주기적 업데이트)
     if st.checkbox("자동 업데이트 (30초마다)"):
