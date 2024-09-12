@@ -19,6 +19,7 @@ else:
 # NLTK 데이터 다운로드
 nltk.download('punkt')
 nltk.download('stopwords')
+nltk.download('punkt_tab')  
 
 # 간단한 요약 함수
 def simple_summarize(text, num_sentences=3):
